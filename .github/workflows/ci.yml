@@ -27,4 +27,4 @@ jobs:
         run: pip list
 
       - name: Run tests
-        run: pytest
+        run: PYTHONPATH=. pytest app/tests --cov=app
