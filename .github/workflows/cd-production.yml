@@ -1,0 +1,33 @@
+name: Deploy to Production (Simulation)
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://your-production-url.com
+      # Add approval rules in GitHub → Settings → Environments → production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull image from GHCR
+        run: docker pull ghcr.io/${{ github.repository }}/fastapi-app:latest
+
+      - name: Simulate production deployment
+        run: |
+          echo "Starting production deployment simulation..."
+          echo "Image pulled: ghcr.io/${{ github.repository }}/fastapi-app:latest"
+          echo "Simulating container start..."
+          echo "Production deployment completed successfully."
+
+      - name: Save deployment log
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-log
+          path: ./simulation.log
