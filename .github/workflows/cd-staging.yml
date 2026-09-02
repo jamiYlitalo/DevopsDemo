@@ -1,0 +1,30 @@
+name: Deploy to Staging (Simulation)
+
+on:
+  push:
+    branches: ["develop"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull image from GHCR
+        run: docker pull ghcr.io/${{ github.repository }}/fastapi-app:latest
+
+      - name: Simulate deployment
+        run: |
+          echo "Starting staging deployment simulation..."
+          echo "Image pulled: ghcr.io/${{ github.repository }}/fastapi-app:latest"
+          echo "Simulating container start..."
+          echo "Staging deployment completed successfully."
+
+      - name: Save deployment log
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-deployment-log
+          path: ./simulation.log
