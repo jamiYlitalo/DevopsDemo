@@ -3,6 +3,7 @@ from app.main import app
 
 client = TestClient(app)
 
+
 def test_validate_positive_value():
     payload = {
         "name": "sensor-01",
@@ -12,6 +13,7 @@ def test_validate_positive_value():
     response = client.post("/validate", json=payload)
     assert response.status_code == 200
     assert response.json()["message"] == "Payload is valid."
+
 
 def test_validate_negative_value():
     payload = {

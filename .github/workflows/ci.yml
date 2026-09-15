@@ -1,5 +1,9 @@
 name: CI Pipeline
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   push:
     branches: ["main", "develop"]
@@ -27,4 +31,42 @@ jobs:
         run: pip list
 
       - name: Run tests
-        run: PYTHONPATH=. pytest app/tests --cov=app
+        run: PYTHONPATH=. pytest app/tests --cov=app --cov-fail-under=90
+
+      - name: Check formatting
+        run: black --check --line-length 79 app
+
+      - name: Lint
+        run: flake8 app
+
+      - name: Security scan
+        run: bandit -r app -x app/tests
+
+      - name: Audit dependencies
+        run: pip-audit -r app/requirements.txt || echo "::warning::Dependency audit reported vulnerabilities; review the audit output."
+
+  image:
+    name: Build and publish image
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/fastapi-app:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/fastapi-app:${{ github.ref_name }}

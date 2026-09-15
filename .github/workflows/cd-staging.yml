@@ -1,30 +1,48 @@
-name: Deploy to Staging (Simulation)
+name: Deploy to Staging
 
 on:
-  push:
-    branches: ["develop"]
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+
+permissions:
+  packages: read
 
 jobs:
   deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop'
     runs-on: ubuntu-latest
     environment: staging
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Pull image from GHCR
-        run: docker pull ghcr.io/${{ github.repository }}/fastapi-app:latest
-
-      - name: Simulate deployment
-        run: |
-          echo "Starting staging deployment simulation..."
-          echo "Image pulled: ghcr.io/${{ github.repository }}/fastapi-app:latest"
-          echo "Simulating container start..."
-          echo "Staging deployment completed successfully."
-
-      - name: Save deployment log
-        uses: actions/upload-artifact@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          name: staging-deployment-log
-          path: ./simulation.log
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/fastapi-app:${{ github.event.workflow_run.head_sha }}
+        run: docker pull "$IMAGE"
+
+      - name: Start staging container
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/fastapi-app:${{ github.event.workflow_run.head_sha }}
+        run: docker run --detach --name fastapi-staging --publish 8000:8000 "$IMAGE"
+
+      - name: Run staging smoke test
+        run: |
+          for attempt in {1..12}; do
+            if curl --fail --silent http://localhost:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs fastapi-staging
+          exit 1
+
+      - name: Stop staging container
+        if: always()
+        run: docker rm --force fastapi-staging
