@@ -1,30 +1,64 @@
-name: Deploy to Staging (Simulation)
+name: Staging Deployment Validation
 
 on:
-  push:
-    branches: ["develop"]
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop'
     runs-on: ubuntu-latest
     environment: staging
 
     steps:
-      - name: Checkout
+      - name: Checkout tested revision
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Pull image from GHCR
-        run: docker pull ghcr.io/${{ github.repository }}/fastapi-app:latest
+      - name: Build Docker image
+        working-directory: infra
+        run: docker compose build
 
-      - name: Simulate deployment
+      - name: Start staging service
+        working-directory: infra
+        run: docker compose up --detach
+
+      - name: Wait for health endpoint
         run: |
-          echo "Starting staging deployment simulation..."
-          echo "Image pulled: ghcr.io/${{ github.repository }}/fastapi-app:latest"
-          echo "Simulating container start..."
-          echo "Staging deployment completed successfully."
+          for attempt in {1..12}; do
+            if curl --fail --silent http://localhost:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f infra/docker-compose.yml logs --no-color > infra/staging-container.log
+          exit 1
 
-      - name: Save deployment log
+      - name: Run API smoke tests
+        run: |
+          curl --fail --silent http://localhost:8000/metrics
+          curl --fail --silent \
+            --header "Content-Type: application/json" \
+            --data '{"name":"staging-smoke-test","value":42,"metadata":{"source":"ci"}}' \
+            http://localhost:8000/validate
+
+      - name: Collect container logs
+        if: always()
+        run: docker compose -f infra/docker-compose.yml logs --no-color > infra/staging-container.log
+
+      - name: Upload deployment logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: staging-deployment-log
-          path: ./simulation.log
+          name: staging-container-logs
+          path: infra/staging-container.log
+
+      - name: Tear down staging service
+        if: always()
+        working-directory: infra
+        run: docker compose down --volumes

@@ -6,12 +6,16 @@ import time
 app = FastAPI(
     title="Automation-Driven API",
     version="1.0.0",
-    description="A minimal FastAPI service used to demonstrate CI/CD, testing, and DevOps automation."
+    description=(
+        "A minimal FastAPI service used to demonstrate CI/CD, testing, "
+        "and DevOps automation."
+    ),
 )
 
 # -----------------------------
 # Models
 # -----------------------------
+
 
 class Payload(BaseModel):
     name: str = Field(..., example="sensor-01")
@@ -38,7 +42,9 @@ def validate_payload(payload: Payload):
     Demonstrates automation-style input validation.
     """
     if payload.value < 0:
-        raise HTTPException(status_code=400, detail="Value must be non-negative.")
+        raise HTTPException(
+            status_code=400, detail="Value must be non-negative."
+        )
 
     return {
         "message": "Payload is valid.",
